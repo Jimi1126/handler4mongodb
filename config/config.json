@@ -1,0 +1,10 @@
+{
+	"mongodb": {
+		"username": "test",
+		"password": "test",
+		"hostName": "127.0.0.1",
+		"port": "27017",
+		"auth": "authSource=admin",
+		"DB_OPTS": {"useNewUrlParser": true, "useUnifiedTopology":true}
+	}
+}

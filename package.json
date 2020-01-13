@@ -1,0 +1,37 @@
+{
+  "name": "handler4mongodb",
+  "version": "1.0.0",
+  "description": "对mongodb模块进行常用操作的封装操作集.",
+  "main": "./src/MongoDao.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [
+    "mongodb",
+    "proxy",
+    "javaScript",
+    "coffee-script"
+  ],
+  "author": "gambler",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/so-hentai/handler4mongodb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/so-hentai/handler4mongodb/issues"
+  },
+  "homepage": "https://github.com/so-hentai/handler4mongodb#readme",
+  "dependencies": {
+    "async": "^3.1.0",
+    "encaps-proxy": "^1.0.0",
+    "moment": "^2.24.0",
+    "mongodb": "^3.4.1"
+  },
+  "devDependencies": {
+    "mocha": "^7.0.0"
+  },
+  "directories": {
+    "test": "test"
+  }
+}
