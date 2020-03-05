@@ -26,7 +26,7 @@ var diff = function(source, target) {
 }
 
 let dao = new MongoDao(config.mongodb, {test: ["user"]});
-
+dao.test.user.insert({"_id":"5e16ec94069ad340241afa24","name":"张三0","id":0}, (err) => {});
 describe("mongoDB常用操作测试，集合：test，文档集：user", ()=> {
   it(`查询测试，查询"张三0"（{"_id":"5e16ec94069ad340241afa24","name":"张三0","id":0}）`, (done)=> {
     dao.test.user.selectOne({name: "张三0"}, (err, doc)=> {

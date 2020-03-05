@@ -4,7 +4,8 @@
   "description": "对mongodb模块进行常用操作的封装操作集.",
   "main": "./src/MongoDao.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "coffee": "coffee -o ./src -cw ./coffee"
   },
   "keywords": [
     "mongodb",

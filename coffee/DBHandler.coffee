@@ -12,7 +12,7 @@ LOG = global["mongoLogger"] || console
 class DBHandler
 	constructor: (@url, @collection, @DB_OPTS)->
 		@database = @url.substring @url.lastIndexOf("/") + 1, @url.lastIndexOf("?")
-	# 短链接，操作完成后释放连接
+	# 数据库会话连接
 	connect: (callback)->
 		cb = (err, db) =>
 			unless db
@@ -21,50 +21,41 @@ class DBHandler
 				callback err, db.db(@database)
 			catch e
 				LOG.error e.stack
-			finally
-				db?.close?()
 		try
 			mongoClient.connect @url, @DB_OPTS, cb
 		catch e
 			LOG.error e.stack
-	# 长链接，操作完成后需手动释放连接
-	keepConnect: (callback)->
-		cb = (err, db) =>
-			unless db
-				LOG.error "数据库连接获取失败"
-			try
-				callback err, db.db(@database)
-			catch e
-				LOG.error e.stack
-		try
-			mongoClient.connect @url, @DB_OPTS, cb
-		catch e
-			LOG.error e.stack
+	# 关闭连接
+	closeConnectFun: (db, callback)->
+		->
+			db?.close?()
+			(callback)?.apply null, arguments
 	insert: (docs, callback) ->
 		@connect (err, db) =>
-			return callback err if err
+			closeConnect = @closeConnectFun db, callback
+			return closeConnect err if err
 			if Array.isArray docs
 				docs.forEach (d)->
 					d._id and typeof d._id is "string" and (d._id = ObjectId(d._id))
-				db.collection(@collection).insert docs, callback
+				db.collection(@collection).insert docs, closeConnect
 			else if docs instanceof Object
 				docs._id and typeof docs._id is "string" and (docs._id = ObjectId(docs._id))
-				db.collection(@collection).insertOne docs, callback
+				db.collection(@collection).insertOne docs, closeConnect
 			else
-				callback "param Invalid"
+				closeConnect "param Invalid"
 	addOrUpdate: (docs, callback) ->
 		if docs instanceof Object or Array.isArray docs
 			that = @
-			@keepConnect (err, db) =>
+			@connect (err, db) =>
 				return callback err if err
 				if Array.isArray docs
 					async.each docs, (doc, ccb)->
 						doc._id and typeof doc._id is "string" and (doc._id = ObjectId(doc._id))
 						db.collection(that.collection).findOne {_id: doc._id}, (err, result)->
 							if result
-								db.collection(that.collection).update {_id: doc._id}, doc, ccb
+								db.collection(that.collection).updateOne {_id: doc._id}, doc, ccb
 							else
-								db.collection(that.collection).insert doc, ccb
+								db.collection(that.collection).insertOne doc, ccb
 					, (err)->
 						db?.close?()
 						callback err
@@ -72,33 +63,48 @@ class DBHandler
 					docs._id and typeof docs._id is "string" and (docs._id = ObjectId(docs._id))
 					db.collection(that.collection).findOne {_id: docs._id}, (err, result)->
 						if result
-							db.collection(that.collection).update {_id: docs._id}, docs, (err)->
+							db.collection(that.collection).updateOne {_id: docs._id}, docs, (err)->
 								db?.close?()
 								callback err
 						else
-							db.collection(that.collection).insert docs, (err)->
+							db.collection(that.collection).insertOne docs, (err)->
 								db?.close?()
 								callback err
 		else
 			callback null
 	delete: (param, callback) ->
 		@connect (err, db) =>
-			return callback err if err
+			closeConnect = @closeConnectFun db, callback
+			return closeConnect err if err
 			param._id and typeof param._id is "string" and (param._id = ObjectId(param._id))
-			db.collection(@collection).remove param, callback
+			db.collection(@collection).countDocuments param, (err, count)=>
+				if count is 1
+					db.collection(@collection).removeOne param, closeConnect
+				else if count > 1
+					db.collection(@collection).removeMany param, closeConnect
+				else
+					closeConnect null, 0
 	update: (filter, setter, callback) ->
 		@connect (err, db) =>
-			return callback err if err
+			closeConnect = @closeConnectFun db, callback
+			return closeConnect err if err
 			filter._id and typeof filter._id is "string" and (filter._id = ObjectId(filter._id))
 			setter._id and delete setter._id
-			db.collection(@collection).update filter, setter, callback
+			db.collection(@collection).countDocuments filter, (err, count)=>
+				if count is 1
+					db.collection(@collection).updateOne filter, setter, closeConnect
+				else if count > 1
+					db.collection(@collection).updateMany filter, setter, closeConnect
+				else
+					closeConnect null, 0
 	selectOne: (param, callback) ->
 		@connect (err, db) =>
-			return callback err if err
+			closeConnect = @closeConnectFun db, callback
+			return closeConnect err if err
 			param._id and typeof param._id is "string" and (param._id = ObjectId(param._id))
-			db.collection(@collection).findOne param, callback
+			db.collection(@collection).findOne param, closeConnect
 	selectBySortOrLimit: (param, sort, limit, callback) ->
-		@keepConnect (err, db) =>
+		@connect (err, db) =>
 			return callback err if err
 			param._id and typeof param._id is "string" and (param._id = ObjectId(param._id))
 			if limit is -1
@@ -110,7 +116,7 @@ class DBHandler
 					db?.close?()
 					callback err, docs
 	selectBySortOrSkipOrLimit: (param, sort, skip, limit, callback) ->
-		@keepConnect (err, db) =>
+		@connect (err, db) =>
 			return callback err if err
 			param._id and typeof param._id is "string" and (param._id = ObjectId(param._id))
 			if limit is -1
@@ -122,7 +128,7 @@ class DBHandler
 					db?.close?()
 					callback err, docs
 	selectList: (param, callback) ->
-		@keepConnect (err, db) =>
+		@connect (err, db) =>
 			return callback err if err
 			param._id and typeof param._id is "string" and (param._id = ObjectId(param._id))
 			db.collection(@collection).find(param).toArray (err, docs)->
@@ -130,15 +136,18 @@ class DBHandler
 				callback err, docs
 	count: (param, callback) ->
 		@connect (err, db) =>
-			return callback err if err
+			closeConnect = @closeConnectFun db, callback
+			return closeConnect err if err
 			param._id and typeof param._id is "string" and (param._id = ObjectId(param._id))
-			db.collection(@collection).countDocuments param, callback
+			db.collection(@collection).countDocuments param, closeConnect
 	aggregate: ->
 		[...params] = arguments
 		return if !params.length
-		callback = params[params.length - 1]
+		callback = params.pop()
 		@connect (err, db) =>
-			return callback err if err
+			closeConnect = @closeConnectFun db, callback
+			params.push closeConnect
+			return closeConnect err if err
 			db.collection(@collection).aggregate.apply db.collection(@collection), params
 
 module.exports = DBHandler

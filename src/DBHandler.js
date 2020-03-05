@@ -26,7 +26,7 @@
       this.database = this.url.substring(this.url.lastIndexOf("/") + 1, this.url.lastIndexOf("?"));
     }
 
-    // 短链接，操作完成后释放连接
+    // 数据库会话连接
     connect(callback) {
       var cb, e;
       cb = (err, db) => {
@@ -39,12 +39,6 @@
         } catch (error) {
           e = error;
           return LOG.error(e.stack);
-        } finally {
-          if (db != null) {
-            if (typeof db.close === "function") {
-              db.close();
-            }
-          }
         }
       };
       try {
@@ -55,44 +49,36 @@
       }
     }
 
-    // 长链接，操作完成后需手动释放连接
-    keepConnect(callback) {
-      var cb, e;
-      cb = (err, db) => {
-        var e;
-        if (!db) {
-          LOG.error("数据库连接获取失败");
+    // 关闭连接
+    closeConnectFun(db, callback) {
+      return function() {
+        var ref;
+        if (db != null) {
+          if (typeof db.close === "function") {
+            db.close();
+          }
         }
-        try {
-          return callback(err, db.db(this.database));
-        } catch (error) {
-          e = error;
-          return LOG.error(e.stack);
-        }
+        return (ref = callback) != null ? ref.apply(null, arguments) : void 0;
       };
-      try {
-        return mongoClient.connect(this.url, this.DB_OPTS, cb);
-      } catch (error) {
-        e = error;
-        return LOG.error(e.stack);
-      }
     }
 
     insert(docs, callback) {
       return this.connect((err, db) => {
+        var closeConnect;
+        closeConnect = this.closeConnectFun(db, callback);
         if (err) {
-          return callback(err);
+          return closeConnect(err);
         }
         if (Array.isArray(docs)) {
           docs.forEach(function(d) {
             return d._id && typeof d._id === "string" && (d._id = ObjectId(d._id));
           });
-          return db.collection(this.collection).insert(docs, callback);
+          return db.collection(this.collection).insert(docs, closeConnect);
         } else if (docs instanceof Object) {
           docs._id && typeof docs._id === "string" && (docs._id = ObjectId(docs._id));
-          return db.collection(this.collection).insertOne(docs, callback);
+          return db.collection(this.collection).insertOne(docs, closeConnect);
         } else {
-          return callback("param Invalid");
+          return closeConnect("param Invalid");
         }
       });
     }
@@ -101,7 +87,7 @@
       var that;
       if (docs instanceof Object || Array.isArray(docs)) {
         that = this;
-        return this.keepConnect((err, db) => {
+        return this.connect((err, db) => {
           if (err) {
             return callback(err);
           }
@@ -112,11 +98,11 @@
                 _id: doc._id
               }, function(err, result) {
                 if (result) {
-                  return db.collection(that.collection).update({
+                  return db.collection(that.collection).updateOne({
                     _id: doc._id
                   }, doc, ccb);
                 } else {
-                  return db.collection(that.collection).insert(doc, ccb);
+                  return db.collection(that.collection).insertOne(doc, ccb);
                 }
               });
             }, function(err) {
@@ -133,7 +119,7 @@
               _id: docs._id
             }, function(err, result) {
               if (result) {
-                return db.collection(that.collection).update({
+                return db.collection(that.collection).updateOne({
                   _id: docs._id
                 }, docs, function(err) {
                   if (db != null) {
@@ -144,7 +130,7 @@
                   return callback(err);
                 });
               } else {
-                return db.collection(that.collection).insert(docs, function(err) {
+                return db.collection(that.collection).insertOne(docs, function(err) {
                   if (db != null) {
                     if (typeof db.close === "function") {
                       db.close();
@@ -163,37 +149,59 @@
 
     delete(param, callback) {
       return this.connect((err, db) => {
+        var closeConnect;
+        closeConnect = this.closeConnectFun(db, callback);
         if (err) {
-          return callback(err);
+          return closeConnect(err);
         }
         param._id && typeof param._id === "string" && (param._id = ObjectId(param._id));
-        return db.collection(this.collection).remove(param, callback);
+        return db.collection(this.collection).countDocuments(param, (err, count) => {
+          if (count === 1) {
+            return db.collection(this.collection).removeOne(param, closeConnect);
+          } else if (count > 1) {
+            return db.collection(this.collection).removeMany(param, closeConnect);
+          } else {
+            return closeConnect(null, 0);
+          }
+        });
       });
     }
 
     update(filter, setter, callback) {
       return this.connect((err, db) => {
+        var closeConnect;
+        closeConnect = this.closeConnectFun(db, callback);
         if (err) {
-          return callback(err);
+          return closeConnect(err);
         }
         filter._id && typeof filter._id === "string" && (filter._id = ObjectId(filter._id));
         setter._id && delete setter._id;
-        return db.collection(this.collection).update(filter, setter, callback);
+        return db.collection(this.collection).countDocuments(filter, (err, count) => {
+          if (count === 1) {
+            return db.collection(this.collection).updateOne(filter, setter, closeConnect);
+          } else if (count > 1) {
+            return db.collection(this.collection).updateMany(filter, setter, closeConnect);
+          } else {
+            return closeConnect(null, 0);
+          }
+        });
       });
     }
 
     selectOne(param, callback) {
       return this.connect((err, db) => {
+        var closeConnect;
+        closeConnect = this.closeConnectFun(db, callback);
         if (err) {
-          return callback(err);
+          return closeConnect(err);
         }
         param._id && typeof param._id === "string" && (param._id = ObjectId(param._id));
-        return db.collection(this.collection).findOne(param, callback);
+        return db.collection(this.collection).findOne(param, closeConnect);
       });
     }
 
     selectBySortOrLimit(param, sort, limit, callback) {
-      return this.keepConnect((err, db) => {
+      return this.connect((err, db) => {
         if (err) {
           return callback(err);
         }
@@ -221,7 +229,7 @@
     }
 
     selectBySortOrSkipOrLimit(param, sort, skip, limit, callback) {
-      return this.keepConnect((err, db) => {
+      return this.connect((err, db) => {
         if (err) {
           return callback(err);
         }
@@ -249,7 +257,7 @@
     }
 
     selectList(param, callback) {
-      return this.keepConnect((err, db) => {
+      return this.connect((err, db) => {
         if (err) {
           return callback(err);
         }
@@ -267,11 +275,13 @@
 
     count(param, callback) {
       return this.connect((err, db) => {
+        var closeConnect;
+        closeConnect = this.closeConnectFun(db, callback);
         if (err) {
-          return callback(err);
+          return closeConnect(err);
         }
         param._id && typeof param._id === "string" && (param._id = ObjectId(param._id));
-        return db.collection(this.collection).countDocuments(param, callback);
+        return db.collection(this.collection).countDocuments(param, closeConnect);
       });
     }
 
@@ -281,10 +291,13 @@
       if (!params.length) {
         return;
       }
-      callback = params[params.length - 1];
+      callback = params.pop();
       return this.connect((err, db) => {
+        var closeConnect;
+        closeConnect = this.closeConnectFun(db, callback);
+        params.push(closeConnect);
         if (err) {
-          return callback(err);
+          return closeConnect(err);
         }
         return db.collection(this.collection).aggregate.apply(db.collection(this.collection), params);
       });
