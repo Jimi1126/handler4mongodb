@@ -110,4 +110,10 @@ coffee/
 test/
 
 #git
-./gitignore
+.gitignore
+
+# .vscode
+.vscode
+
+# config
+config/

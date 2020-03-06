@@ -1,6 +1,6 @@
 {
   "name": "handler4mongodb",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "对mongodb模块进行常用操作的封装操作集.",
   "main": "./src/MongoDao.js",
   "scripts": {

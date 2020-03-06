@@ -53,7 +53,7 @@ class DBHandler
 						doc._id and typeof doc._id is "string" and (doc._id = ObjectId(doc._id))
 						db.collection(that.collection).findOne {_id: doc._id}, (err, result)->
 							if result
-								db.collection(that.collection).updateOne {_id: doc._id}, doc, ccb
+								db.collection(that.collection).updateOne {_id: doc._id}, {$set: doc}, ccb
 							else
 								db.collection(that.collection).insertOne doc, ccb
 					, (err)->
@@ -63,7 +63,7 @@ class DBHandler
 					docs._id and typeof docs._id is "string" and (docs._id = ObjectId(docs._id))
 					db.collection(that.collection).findOne {_id: docs._id}, (err, result)->
 						if result
-							db.collection(that.collection).updateOne {_id: docs._id}, docs, (err)->
+							db.collection(that.collection).updateOne {_id: docs._id}, {$set: docs}, (err)->
 								db?.close?()
 								callback err
 						else

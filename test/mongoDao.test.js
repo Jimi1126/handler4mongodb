@@ -59,6 +59,20 @@ describe("mongoDB常用操作测试，集合：test，文档集：user", ()=> {
       });
     });
   });
+  it(`addOrUpdate测试，更新“李四”（{"name":"李四","id":21}）的ID为24`, (done)=> {
+    dao.test.user.selectOne({"name":"李四"}, (err, doc)=> {
+      if (err) return done(err);
+      doc.id = 24;
+      dao.test.user.addOrUpdate(doc, (err) => {
+        if (err) return done(err);
+        dao.test.user.selectOne({"name":"李四"}, (err, doc)=> {
+          if (err) return done(err);
+          if (doc && doc.id == 24) return done();
+          done(`查询结果：` + JSON.stringify(doc));
+        });
+      });
+    });
+  });
   it(`删除测试，删除“李四”（{"name":"李四","id":20}）`, (done)=> {
     dao.test.user.delete({"name":"李四"}, (err) => {
       if (err) return done(err);

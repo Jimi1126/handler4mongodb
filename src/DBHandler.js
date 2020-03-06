@@ -100,7 +100,9 @@
                 if (result) {
                   return db.collection(that.collection).updateOne({
                     _id: doc._id
-                  }, doc, ccb);
+                  }, {
+                    $set: doc
+                  }, ccb);
                 } else {
                   return db.collection(that.collection).insertOne(doc, ccb);
                 }
@@ -121,7 +123,9 @@
               if (result) {
                 return db.collection(that.collection).updateOne({
                   _id: docs._id
-                }, docs, function(err) {
+                }, {
+                  $set: docs
+                }, function(err) {
                   if (db != null) {
                     if (typeof db.close === "function") {
                       db.close();
