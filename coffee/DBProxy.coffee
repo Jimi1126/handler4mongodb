@@ -7,6 +7,7 @@ LOG = global["mongoLogger"] || console
 class DBProxy extends Proxy
 	constructor: (target, security)->
 		super(target, security)
+		@dbname = target.url.substring (target.url.lastIndexOf('/') + 1), target.url.lastIndexOf('?')
 	proxy: (f)->
 		that = @
 		if f.name is "connect"
@@ -18,14 +19,14 @@ class DBProxy extends Proxy
 			startTime = moment()
 			paramStr = ""
 			paramStr = (JSON.stringify(p) for p in params).join ","
-			paramStr = if paramStr.length > 100 then paramStr.substring(0, 100) + "..." else paramStr
+			paramStr = if paramStr.length > 100 then paramStr.substring(0, 200) + "..." else paramStr
 			params.push ->
 				endTime = moment()
-				LOG.info "#{that.target.constructor.name}.#{f.name}:#{paramStr}  --#{endTime - startTime}ms"
+				LOG.info "#{that.dbname}.#{that.collection}.#{f.name}:#{paramStr}  --#{endTime - startTime}ms"
 				callback.apply @, arguments
 			try
 				f.apply that.target, params
 			catch e
-				(LOG.trace || LOG.error)("#{that.target.constructor.name}.#{f.name}:#{paramStr}  --#{moment() - startTime}ms\n#{e.stack}")
+				(LOG.trace || LOG.error)("#{that.dbname}.#{that.collection}.#{f.name}:#{paramStr}  --#{moment() - startTime}ms\n#{e.stack}")
 				callback e
 module.exports = DBProxy

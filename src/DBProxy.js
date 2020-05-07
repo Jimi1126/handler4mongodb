@@ -14,6 +14,7 @@
   DBProxy = class DBProxy extends Proxy {
     constructor(target, security) {
       super(target, security);
+      this.dbname = target.url.substring(target.url.lastIndexOf('/') + 1, target.url.lastIndexOf('?'));
     }
 
     proxy(f) {
@@ -39,18 +40,18 @@
           }
           return results;
         })()).join(",");
-        paramStr = paramStr.length > 100 ? paramStr.substring(0, 100) + "..." : paramStr;
+        paramStr = paramStr.length > 100 ? paramStr.substring(0, 200) + "..." : paramStr;
         params.push(function() {
           var endTime;
           endTime = moment();
-          LOG.info(`${that.target.constructor.name}.${f.name}:${paramStr}  --${endTime - startTime}ms`);
+          LOG.info(`${that.dbname}.${that.collection}.${f.name}:${paramStr}  --${endTime - startTime}ms`);
           return callback.apply(this, arguments);
         });
         try {
           return f.apply(that.target, params);
         } catch (error) {
           e = error;
-          (LOG.trace || LOG.error)(`${that.target.constructor.name}.${f.name}:${paramStr}  --${moment() - startTime}ms\n${e.stack}`);
+          (LOG.trace || LOG.error)(`${that.dbname}.${that.collection}.${f.name}:${paramStr}  --${moment() - startTime}ms\n${e.stack}`);
           return callback(e);
         }
       };
